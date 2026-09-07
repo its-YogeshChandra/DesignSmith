@@ -5,12 +5,19 @@ import os;
 from pathlib import Path;
 #get the lama cloud api from the env file 
 import requests;
+from liteparse import LiteParse;
 
 def make_client() -> LlamaCloud:
     cloud = LlamaCloud(api_key=os.getenv("LLAMA_CLOUD_API_KEY"))
     return cloud
 
-
+parser_client = LiteParse(
+    ocr_enabled= True,
+    ocr_server_url="http://localhost:8001",
+    output_format="json",
+    extract_images=True,
+    extract_links=True
+)
 
 #function is the main indexing function
 #one image at a a time parsing: save from loading too much data on local disk 
@@ -20,31 +27,11 @@ def indexer(client : LlamaCloud, file_path : str, out_dir: str):
     #read file from the file path 
     with open(file_path, "rb") as f:
         #upload file in llama cloud 
-        file = client.files.create(file=f, purpose="parse") 
+        data_bytes = f.read()
+        response = parser_client.parse(data=data_bytes)
+        
 
-        #parse the file 
-        parsing_response = client.parsing.parse(
-            file_id=file.id,
-            tier= "agentic",
-            version="latest",
-            output_options= {"images_to_save": ["screenshots", "embedded", "layout" ]},
-            expand= ["markdown_full", "images_content_metadata"]
-            )
-
-        #download each image via pre assigned url 
-        for image in parsing_response.images_content_metadata.images:
-            #give the destination path to save the file 
-            dest = Path(out_dir) / f"{image.filename}"
-
-            try:
-            #fetch image from the llama cloud and send it to the user
-            #network io operation : use async  
-                image_response = requests.get(image.url,allow_redirects=True, stream=True) 
-                with open(dest, "wb") as img_file:
-                    for chunk in image_response.iter_content():
-                        img_file.write(chunk)
-            except ValueError as e:
-                print(f"Failed to download image: {e}")
+        #download each image via pre assigned url  
 
     return {
             "file_destination" : dest,
@@ -53,7 +40,6 @@ def indexer(client : LlamaCloud, file_path : str, out_dir: str):
                 
 
 #test the indexer function 
-
 print(indexer(make_client(), "test.pdf", "out"))
 
                 
