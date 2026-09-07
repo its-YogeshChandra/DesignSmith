@@ -1,13 +1,42 @@
 #goal : index all the images using llamaindex and save it to qdrant 
 from llama_cloud import LlamaCloud;
 from designsmith.utils.file_utility import download_files_from_s3, list_objects;
+import os;
+from pathlib import Path;
+#get the lama cloud api from the env file 
+ 
 
-#need to configure the llama cloud first
-#using async configurations 
-file_vector = list_objects();
-client = LlamaCloud()
+def make_client() -> LlamaCloud:
+    cloud = LlamaCloud(api_key=os.getenv("LLAMA_CLOUD_API_KEY"))
+    return cloud
+
+
 
 #function is the main indexing function
-def indexer():
-    file = client.files.create(file="", purpose="")
-    result = client.parsing.parse(file_id)
+#one image at a a time parsing: save from loading too much data on local disk 
+#return : image embedding
+def indexer(client : LlamaCloud, file_path : str, out_dir: str):
+       
+       #read file from the file path 
+        with open(file_path, "rb") as f:
+            #upload file in llama cloud 
+            file = client.files.create(file=f, purpose="parse") 
+
+            #parse the file 
+            parsing_response = client.parsing.parse(
+                file_id=file.id,
+                tier= "agentic",
+                version="latest",
+                output_options= {"images_to_save": ["screenshots", "embedded", "layout" ]},
+                expand= ["markdown_full", "images_content_metadata"]
+            )
+
+            #download each image via pre assigned url 
+            for image in parsing_response.images_content_metadata.images:
+                #give the destination path to save the file 
+                dest = Path(out_dir) / f"{image.filename}"
+                
+                
+
+                
+        result = client.parsing.parse(file_id)

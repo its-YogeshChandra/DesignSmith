@@ -1,5 +1,4 @@
 #the goal is to read the image files from the folder or from the cloudinary api
-import requests; 
 import boto3;
 from dotenv import load_dotenv;
 import os;
@@ -16,6 +15,7 @@ SECRET_KEY = os.getenv("CLOUDFLARE_SECRET_KEY")
 ACCESS_KEY = os.getenv("CLOUDFLARE_ACCESS_KEY")
 BUCKET_NAME = os.getenv("BUCKET_NAME")
 ACCOUNT_ID = os.getenv("ACCOUNT_ID")
+
 
 s3 = boto3.client(
     service_name='s3',
@@ -41,5 +41,12 @@ def download_files_from_s3(file_name : str):
 
 # List objects
 def list_objects() -> dict[str,any]:
-    response = s3.list_objects_v2(Bucket=BUCKET_NAME)
-    return response
+    response =s3.list_objects_v2(
+        Bucket=BUCKET_NAME
+    )
+
+    return response.get('Contents', [])
+
+#pretty print the list of objects
+import pprint
+pprint.pprint(list_objects())

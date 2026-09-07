@@ -214,6 +214,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
+    { name = "httpx" },
     { name = "llama-cloud" },
     { name = "python-dotenv" },
     { name = "requests" },
@@ -222,6 +223,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.43.89" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "llama-cloud", specifier = ">=2.15.0" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "requests", specifier = ">=2.34.2" },
