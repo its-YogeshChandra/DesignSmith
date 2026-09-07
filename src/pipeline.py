@@ -52,6 +52,8 @@ def indexer(client : LlamaCloud, file_path : str, out_dir: str):
             }
                 
 
+#test the indexer function 
 
+print(indexer(make_client(), "test.pdf", "out"))
 
                 
