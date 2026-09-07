@@ -2,6 +2,7 @@
 import boto3;
 from dotenv import load_dotenv;
 import os;
+from pathlib import Path;
 
 load_dotenv()
 
@@ -35,8 +36,13 @@ s3 = boto3.client(
 
 #download files from the bucket and load them into a folder
 # return : path to the file  
-def download_files_from_s3(file_name : str):
-    s3.download_file(BUCKET_NAME, file_name, file_name)     
+def download_files_from_s3(file_name : str, dest_folder: str)-> str:
+    dest = Path(f"{dest_folder}/{file_name}")   
+    response = s3.download_file(BUCKET_NAME, file_name, file_path)     
+    #write to the desitnation 
+    with open(dest, 'wb') as f: 
+        f.write(response.data)
+    return dest
 
 
 # List objects
