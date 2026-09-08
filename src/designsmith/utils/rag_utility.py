@@ -55,42 +55,90 @@ def svg_to_png(svg_path: str, out_dir: str) -> str:
     return str(Path(out_dir) / png_name)
 
 
-#embed an image file via CLIP /embedding/image endpoint
-#handles SVG by converting to PNG first, then cleaning up
-#returns: list of 512 floats (CLIP vector) or None on failure
-def embed_image(file_path: str, temp_dir: str = None) -> list[float] | None:
-    mime = get_mimetype(file_path)
-    if temp_dir is None:
-        temp_dir = str(Path(file_path).parent)
+#convert raw bytes + filename to a data URI (for API uploads)
+def bytes_to_data_uri(data: bytes, filename: str) -> tuple[str, str]:
+    mime = get_mimetype(filename)
+    if mime is None:
+        #sniff magic bytes as fallback
+        if data[:8].startswith(b"\x89PNG"):
+            mime = "image/png"
+        elif data[:3].startswith(b"\xff\xd8\xff"):
+            mime = "image/jpeg"
+        else:
+            mime = "image/jpeg"
+    data_uri = f"data:{mime};base64," + base64.b64encode(data).decode()
+    return (mime, data_uri)
 
-    try:
+
+#embed an image via CLIP /embedding/image endpoint
+#accepts EITHER:
+#  file_path (str) — for local files / S3 downloads
+#  data (bytes) + filename (str) — for API file uploads 
+#handles SVG by converting to PNG first (file_path mode only)
+#returns: list of 512 floats (CLIP vector) or None on failure
+def embed_image(
+    file_path: str = None,
+    data: bytes = None,
+    filename: str = None,
+    temp_dir: str = None
+) -> list[float] | None:
+
+    #determine mime and data_uri from either source
+    if data is not None and filename is not None:
+        #raw bytes from API upload
+        mime, data_uri = bytes_to_data_uri(data, filename)
+        if mime == "image/svg+xml":
+            #SVG upload — save to temp file, convert to PNG, then embed
+            import tempfile
+            if temp_dir is None:
+                temp_dir = tempfile.gettempdir()
+            tmp_svg = Path(temp_dir) / filename
+            tmp_svg.write_bytes(data)
+            try:
+                png_path = svg_to_png(str(tmp_svg), temp_dir)
+                _, data_uri = image_to_data_uri(png_path)
+                Path(png_path).unlink(missing_ok=True)
+            except Exception as e:
+                print(f"SVG conversion failed for upload {filename}: {e}")
+                return None
+            finally:
+                tmp_svg.unlink(missing_ok=True)
+    elif file_path is not None:
+        mime = get_mimetype(file_path)
+        if temp_dir is None:
+            temp_dir = str(Path(file_path).parent)
+
         if mime == "image/svg+xml":
             #SVG not supported by CLIP — convert to PNG first
-            png_path = svg_to_png(file_path, temp_dir)
-            _, data_uri = image_to_data_uri(png_path)
-            response = requests.post(
-                f"{CLIP_API_URL}/embedding/image",
-                json={"images": [data_uri]},
-                timeout=120,
-            )
-            response.raise_for_status()
-            vector = response.json()[0]["vector"]
-            #cleanup temp PNG
-            Path(png_path).unlink(missing_ok=True)
-            return vector
+            try:
+                png_path = svg_to_png(file_path, temp_dir)
+                _, data_uri = image_to_data_uri(png_path)
+            except Exception as e:
+                print(f"SVG conversion failed for {file_path}: {e}")
+                return None
         else:
             _, data_uri = image_to_data_uri(file_path)
-            response = requests.post(
-                f"{CLIP_API_URL}/embedding/image",
-                json={"images": [data_uri]},
-                timeout=120,
-            )
-            response.raise_for_status()
-            vector = response.json()[0]["vector"]
-            return vector
+    else:
+        print("embed_image: provide either file_path or (data + filename)")
+        return None
+
+    try:
+        response = requests.post(
+            f"{CLIP_API_URL}/embedding/image",
+            json={"images": [data_uri]},
+            timeout=120,
+        )
+        response.raise_for_status()
+        vector = response.json()[0]["vector"]
+
+        #cleanup temp PNG if SVG was converted
+        if file_path and mime == "image/svg+xml":
+            Path(png_path).unlink(missing_ok=True)
+
+        return vector
 
     except Exception as e:
-        print(f"embed_image error for {file_path}: {e}")
+        print(f"embed_image error: {e}")
         return None
 
 
@@ -159,3 +207,7 @@ def embed_texts_batch(texts: list[str]) -> list[list[float]]:
     except Exception as e:
         print(f"embed_texts_batch error: {e}")
         return []
+
+#function to read and get the embeddings for multiple images
+def get_embeddings_from_db(image_keys:list[str]) -> list[list[float]]:
+    None 
