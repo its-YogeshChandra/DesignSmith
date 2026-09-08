@@ -19,9 +19,9 @@ async def get_image(request : GetImageRequest) -> GetImageResponse:
     #create embedding from uploaded image using clip model  
     user_query_embedding = embed_image(data=raw_bytes, filename=file_data.filename)
 
-
-    #retreive similar embeddings from embeddings  
-
+    #retreive similar embeddings from embeddings
+    #will doing a nearest neightbor search
+    
     print(user_query_embedding) 
     return GetImageResponse(response = "the response is ")
 

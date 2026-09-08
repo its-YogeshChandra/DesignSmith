@@ -208,6 +208,28 @@ def embed_texts_batch(texts: list[str]) -> list[list[float]]:
         print(f"embed_texts_batch error: {e}")
         return []
 
+
+def get_vectordb_client()->QdrantClient:
+   client = QdrantClient(url = "http://localhost:6333");
+   return client
+
+
+
 #function to read and get the embeddings for multiple images
-def get_embeddings_from_db(image_keys:list[str]) -> list[list[float]]:
-    None 
+def get_embeddings_from_db(parsed_data: List[float]) -> list[list[float]]:
+    client = get_vectordb_client()
+
+    #neartest neighbour search 
+    #search based on similarity of vectors
+    #future : can add query_filter for particular search 
+    response = client.query_points(
+        collection_name = "design_smith",
+        query = parsed_data,
+    )
+    #parse response 
+    vector = response.points[0].vector  
+    return vector 
+    
+    
+        
+    
