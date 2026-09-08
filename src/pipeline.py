@@ -12,12 +12,13 @@ from qdrant_client.models import PointStruct, VectorParams, Distance;
 import mimetypes;
 import uuid;
 import pprint;
+import subprocess;
 
 #function is the main indexing function
 #uses clip: (image parser) to extract the data 
 #one image at a a time parsing: save from loading too much data on local disk 
 
-def image_data_uri(file_path: str) -> str:
+def image_data_uri(file_path: str) -> (str,str):
     with open(file_path, "rb") as f:
         raw = f.read()
     mime, _ = mimetypes.guess_type(file_path)
@@ -31,38 +32,73 @@ def image_data_uri(file_path: str) -> str:
             mime = "image/gif"
         elif raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
             mime = "image/webp"
+        elif stripped_raw.startswith(b"<?xml") or stripped_raw.startswith(b"<svg"):
+            mime = "image/svg+xml"
         else:
             mime = "image/jpeg"
-    return f"data:{mime};base64," + base64.b64encode(raw).decode()
+    return (mime, f"data:{mime};base64," + base64.b64encode(raw).decode())
 
 #input : object key 
 #output : string of mime type
 def image_mimetype(object_key : str)-> str:
     mime, _ = mimetypes.guess_type(object_key)
     if mime is None:
+        #change this in future 
         mime = "image/jpeg"  # default fallback
     return mime
 
 
 
 
+def svg_to_png(svg_path: str, out_dir: str) -> str:
+    """Convert SVG to PNG using macOS qlmanage. Returns path to generated PNG."""
+    #might have to change this
+    #reason : qlamanage is mac specific command
+    subprocess.run(
+        ["qlmanage", "-t", "-s", "512", "-o", out_dir, svg_path],
+        capture_output=True, check=True
+    )
+    #qlmanage outputs <filename>.svg.png in the output dir
+    png_name = Path(svg_path).name + ".png"
+    return str(Path(out_dir) / png_name)
+
+
 def parse_image(file_path : str, out_dir: str): 
-    #convert image to base64
-    image_string = image_data_uri(file_path)
+    mime = image_mimetype(file_path)
     api_url = os.getenv("CLIP_API_URL", "http://localhost:8000")
+
     try:
-        response = requests.post(
-            f"{api_url}/embedding/image",
-            json={"images": [image_string]},
-            timeout=120,
+        if mime == "image/svg+xml":
+            #SVG not supported by CLIP directly
+            #convert to PNG via qlmanage, embed the PNG, then cleanup
+            png_path = svg_to_png(file_path, out_dir)
+            _, image_string = image_data_uri(png_path)
+            response = requests.post(
+                f"{api_url}/embedding/image",
+                json={"images": [image_string]},
+                timeout=120,
             )
-        response.raise_for_status()
-        vector = response.json()[0]["vector"]  # 512 floats
-        return vector
+            response.raise_for_status()
+            vector = response.json()[0]["vector"]
+            #cleanup temp PNG
+            Path(png_path).unlink(missing_ok=True)
+            return vector
+
+        else:  
+            _, image_string = image_data_uri(file_path)
+            response = requests.post(
+                f"{api_url}/embedding/image",
+                json={"images": [image_string]},
+                timeout=120,
+            )
+            response.raise_for_status()
+            vector = response.json()[0]["vector"]
+            return vector
     
     except Exception as e: 
-        print("the error is :  ") 
-        pprint.pprint(e) 
+        print(f"parse_image error for {file_path}: ")
+        pprint.pprint(e)
+        return None 
             
                 
 #test the parse function 
@@ -89,7 +125,6 @@ if not client.collection_exists("image_collection"):
 #take the index file read the output 
 def Store() ->None:
     image_data_storage = list_objects();
-    print("the image data storage is : ", image_data_storage)     
     points = []
     for image in image_data_storage: 
        image_data = image.get('Key')
@@ -98,10 +133,12 @@ def Store() ->None:
        download_destination = str(PROJECT_ROOT / "public" / "storage")
      
        destination_res = download_files_from_s3(image_data, download_destination)
-       print("the download res is : ", destination_res)   
 
-       output_dir = "../output"   
-       parsed_image_data = parse_image(destination_res, output_dir)        
+       #for SVG: qlmanage outputs temp PNG into the same folder  
+       parsed_image_data = parse_image(destination_res, download_destination)
+       if parsed_image_data is None:
+           print(f"Skipping {image_data} — parse failed")
+           continue
        
        #image embeddings 
        #iterate over the parse images and create points vector  
