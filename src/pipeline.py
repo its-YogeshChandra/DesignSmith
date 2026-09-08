@@ -10,6 +10,7 @@ import base64;
 from qdrant_client import QdrantClient;
 from qdrant_client.models import PointStruct, VectorParams;
 import mimetypes;
+import uuid;
 
 #function is the main indexing function
 #uses clip: (image parser) to extract the data 
@@ -33,6 +34,16 @@ def image_data_uri(file_path: str) -> str:
             mime = "image/jpeg"
     return f"data:{mime};base64," + base64.b64encode(raw).decode()
 
+#input : object key 
+#output : string of mime type
+def image_mimetype(object_key : str)-> str:
+    mime, _ = mimetypes.guess_type(object_key)
+    if mime is None:
+        mime = "image/jpeg"  # default fallback
+    return mime
+
+
+
 
 def parse_image(file_path : str, out_dir: str): 
     #convert image to base64
@@ -55,11 +66,12 @@ def parse_image(file_path : str, out_dir: str):
             
                 
 #test the parse function 
-if __name__ == "__main__":
-    import pprint
-    result = parse_image("test.jpeg", "out")
-    print("the result is : ")
-    pprint.pprint(result)
+# if __name__ == "__main__":
+#     import pprint
+#     result = parse_image("test.jpeg", "out")
+#     print("the result is : ")
+#     pprint.pprint(result)
+
 
 client = QdrantClient(url = "http://localhost:6333");
 #create the collection
@@ -73,21 +85,36 @@ client.create_collection(
 #take the index file read the output 
 def Store() ->None:
     image_data_storage = list_objects();
-     
+    print("the image data storage is : ", image_data_storage)     
+    points = []
     for image in image_data_storage: 
        image_data = image.get('Key')
+       image_mimetype_res = image_mimetype(image_data) 
+       
        download_destination = "../public/storage"
        destination_res = download_files_from_s3(image_data, "downloaded")
 
        output_dir = "../output"   
        parsed_image_data = parse_image(destination_res, output_dir)        
        
-       #image embeddings  
-
-       qdrant_info = client.upsert(
-           collection_name= "image_collection",
-           wait = True,
-           points = [PointStruct ]
+       #image embeddings 
+       #iterate over the parse images and create points vector  
+       points.append(
+            PointStruct(
+                id=str(uuid.uuid4()),
+                vector=parsed_image_data,
+                payload={
+                    "file_name" : image_data,
+                    "mimetype" : image_mimetype_res,
+                }
+                
+            )
+          )
+           
+    qdrant_info = client.upsert(
+        collection_name= "image_collection",
+        wait = True,
+        points = points
        )
 
 
