@@ -8,7 +8,7 @@ from liteparse import LiteParse;
 from llama_index.core import VectorStoreIndex;
 import base64;
 from qdrant_client import QdrantClient;
-from qdrant_client.models import PointStruct, VectorParams;
+from qdrant_client.models import PointStruct, VectorParams, Distance;
 import mimetypes;
 import uuid;
 
@@ -117,6 +117,8 @@ def Store() ->None:
             wait = True,
             points = points
         )
+        print("the qdrant info is : ", qdrant_info)
+
     except Exception as e: 
         print("the error is :  ") 
         pprint.pprint(e) 

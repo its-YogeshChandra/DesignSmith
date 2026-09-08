@@ -16,4 +16,8 @@ wheels/
 #graphify output 
 graphify-out
 
+#qdrant storage 
+qdrant_storage
+
 test.jpeg
+
