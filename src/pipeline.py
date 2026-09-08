@@ -48,8 +48,6 @@ def image_mimetype(object_key : str)-> str:
     return mime
 
 
-
-
 def svg_to_png(svg_path: str, out_dir: str) -> str:
     """Convert SVG to PNG using macOS qlmanage. Returns path to generated PNG."""
     #might have to change this
@@ -166,6 +164,11 @@ def Store() ->None:
         print("the error is :  ") 
         pprint.pprint(e) 
 
+
+def init_pipeline()-> None:
     
-print(Store())
+    Store()
+
+
+print(init_pipeline())
                 
