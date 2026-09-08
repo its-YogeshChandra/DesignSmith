@@ -7,6 +7,7 @@ import requests;
 from liteparse import LiteParse;
 from llama_index.core import VectorStoreIndex;
 import base64;
+from qdrant_client import QdrantClient;
 
 #function is the main indexing function
 #uses clip: (image parser) to extract the data 
@@ -25,7 +26,7 @@ def parse_image(file_path : str, out_dir: str):
                 "image": encoded_string 
             }
             ) 
-            return response.json().get("detail")[0].get("input"); 
+            return response.json().get("detail")[0]; 
 
         except Exception as e: 
             print("the error is :  ") 
@@ -39,9 +40,17 @@ if __name__ == "__main__":
     print("the result is : ")
     pprint.pprint(result)
 
+client = QdrantClient(url = "http://localhost:6333");
+#create the collection
+client.create_collection(
+    collection_name="image_collection",
+    vectors_config=VectorParams(size=1536, distance=Distance.DOT),
+)
+
+
 
 #take the index file read the output 
-def embedder() ->None:
+def Store() ->None:
     image_data_storage = list_objects();
      
     for image in image_data_storage: 
@@ -52,9 +61,11 @@ def embedder() ->None:
        output_dir = "../output"   
        parsed_image_data = parse_image(destination_res, output_dir)        
        
-       #parse the image data 
-       image_data
-       #chunk the parsed response  
+       #image embeddings  
+       image_data = parse_image
+
+       client.
+
 
     
       

@@ -14,6 +14,7 @@ dependencies = [
     "llama-cloud>=2.15.0",
     "llama-index>=0.14.24",
     "python-dotenv>=1.2.3",
+    "qdrant-client>=1.19.0",
     "requests>=2.34.2",
 ]
 
