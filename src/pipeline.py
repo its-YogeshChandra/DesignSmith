@@ -5,30 +5,38 @@ from pathlib import Path;
 #get the lama cloud api from the env file 
 import requests;
 from liteparse import LiteParse;
-
-
+from llama_index.core import VectorStoreIndex;
+import base64;
 
 #function is the main indexing function
+#uses clip: (image parser) to extract the data 
 #one image at a a time parsing: save from loading too much data on local disk 
-#return : parsed response from liteparse 
-def parse(file_path : str, out_dir: str): 
-    #parse locally using liteparse (no Docker needed)
-    parser = LiteParse(
-        output_format="json",
-        extract_images=True,
-        extract_links=True
-    )
-    response = parser.parse(file_path)
-     
-    return {
-            "file_path" : file_path,
-            "response" : response
+def parse_image(file_path : str, out_dir: str): 
+     #convert image to base64
+    with open(file_path, "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read()).decode()
+
+        api_url = os.getenv("CLIP_API_URL")
+        api_url = "http://localhost:8000"
+        try:
+            response = requests.post(
+            f"{api_url}/embedding/image",
+            json={
+                "image": encoded_string 
             }
+            ) 
+            return response.json().get("detail")[0].get("input"); 
+
+        except Exception as e: 
+            print("the error is :  ") 
+            pprint.pprint(e) 
+            
                 
 #test the parse function 
 if __name__ == "__main__":
     import pprint
-    result = parse("(21) X.jpeg", "out")
+    result = parse_image("test.jpeg", "out")
+    print("the result is : ")
     pprint.pprint(result)
 
 
@@ -42,11 +50,10 @@ def embedder() ->None:
        destination_res = download_files_from_s3(image_data, "downloaded")
 
        output_dir = "../output"   
-       parser_client = parser_client() 
+       parsed_image_data = parse_image(destination_res, output_dir)        
        
        #parse the image data 
-       parse_res = parse(destination_res, output_dir, parser_client)
-
+       image_data
        #chunk the parsed response  
 
     
