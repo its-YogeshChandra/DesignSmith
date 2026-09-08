@@ -8,29 +8,50 @@ from liteparse import LiteParse;
 from llama_index.core import VectorStoreIndex;
 import base64;
 from qdrant_client import QdrantClient;
+from qdrant_client.models import PointStruct, VectorParams;
+import mimetypes;
 
 #function is the main indexing function
 #uses clip: (image parser) to extract the data 
 #one image at a a time parsing: save from loading too much data on local disk 
+
+def image_data_uri(file_path: str) -> str:
+    with open(file_path, "rb") as f:
+        raw = f.read()
+    mime, _ = mimetypes.guess_type(file_path)
+    if mime is None:  # unknown extension — sniff the magic bytes
+        magic = raw[:8]
+        if magic.startswith(b"\x89PNG"):
+            mime = "image/png"
+        elif magic.startswith(b"\xff\xd8\xff"):
+            mime = "image/jpeg"
+        elif magic.startswith(b"GIF8"):
+            mime = "image/gif"
+        elif raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+            mime = "image/webp"
+        else:
+            mime = "image/jpeg"
+    return f"data:{mime};base64," + base64.b64encode(raw).decode()
+
+
 def parse_image(file_path : str, out_dir: str): 
-     #convert image to base64
-    with open(file_path, "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read()).decode()
-
-        api_url = os.getenv("CLIP_API_URL")
-        api_url = "http://localhost:8000"
-        try:
-            response = requests.post(
+    #convert image to base64
+    image_string = image_data_uri(file_path)
+    api_url = os.getenv("CLIP_API_URL")
+    api_url = "http://localhost:8000"
+    try:
+        response = requests.post(
             f"{api_url}/embedding/image",
-            json={
-                "image": encoded_string 
-            }
-            ) 
-            return response.json().get("detail")[0]; 
-
-        except Exception as e: 
-            print("the error is :  ") 
-            pprint.pprint(e) 
+            json={"images": [image_string]},
+            timeout=120,
+            )
+        response.raise_for_status()
+        vector = response.json()[0]["vector"]  # 512 floats
+        return vector
+    
+    except Exception as e: 
+        print("the error is :  ") 
+        pprint.pprint(e) 
             
                 
 #test the parse function 
@@ -62,9 +83,12 @@ def Store() ->None:
        parsed_image_data = parse_image(destination_res, output_dir)        
        
        #image embeddings  
-       image_data = parse_image
 
-       client.
+       qdrant_info = client.upsert(
+           collection_name= "image_collection",
+           wait = True,
+           points = [PointStruct ]
+       )
 
 
     
