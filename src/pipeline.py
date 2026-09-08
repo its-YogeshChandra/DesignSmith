@@ -110,13 +110,16 @@ def Store() ->None:
                 
             )
           )
-           
-    qdrant_info = client.upsert(
-        collection_name= "image_collection",
-        wait = True,
-        points = points
-       )
 
+    try:      
+        qdrant_info = client.upsert(
+            collection_name= "image_collection",
+            wait = True,
+            points = points
+        )
+    except Exception as e: 
+        print("the error is :  ") 
+        pprint.pprint(e) 
 
     
       
