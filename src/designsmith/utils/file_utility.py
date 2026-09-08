@@ -37,12 +37,12 @@ s3 = boto3.client(
 #download files from the bucket and load them into a folder
 # return : path to the file  
 def download_files_from_s3(file_name : str, dest_folder: str)-> str:
-    dest = Path(f"{dest_folder}/{file_name}")   
-    response = s3.download_file(BUCKET_NAME, file_name, dest)     
-    #write to the desitnation 
-    with open(dest, 'wb') as f: 
-        f.write(response.data)
-    return dest
+    dest = Path(f"{dest_folder}/{file_name}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    
+    #s3.download_file writes directly to disk — no response to read
+    s3.download_file(BUCKET_NAME, file_name, str(dest))
+    return str(dest)
 
 
 # List objects

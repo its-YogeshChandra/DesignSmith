@@ -94,8 +94,9 @@ def Store() ->None:
     for image in image_data_storage: 
        image_data = image.get('Key')
        image_mimetype_res = image_mimetype(image_data) 
-       
-       download_destination = "../public/storage"
+       PROJECT_ROOT = Path(__file__).resolve().parents[1]   # DesignSmith/ even when run from anywhere
+       download_destination = str(PROJECT_ROOT / "public" / "storage")
+     
        destination_res = download_files_from_s3(image_data, download_destination)
        print("the download res is : ", destination_res)   
 
