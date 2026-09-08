@@ -38,7 +38,7 @@ s3 = boto3.client(
 # return : path to the file  
 def download_files_from_s3(file_name : str, dest_folder: str)-> str:
     dest = Path(f"{dest_folder}/{file_name}")   
-    response = s3.download_file(BUCKET_NAME, file_name, file_path)     
+    response = s3.download_file(BUCKET_NAME, file_name, dest)     
     #write to the desitnation 
     with open(dest, 'wb') as f: 
         f.write(response.data)
@@ -53,6 +53,3 @@ def list_objects() -> dict[str,any]:
 
     return response.get('Contents', [])
 
-#pretty print the list of objects
-import pprint
-pprint.pprint(list_objects())

@@ -11,6 +11,7 @@ from qdrant_client import QdrantClient;
 from qdrant_client.models import PointStruct, VectorParams, Distance;
 import mimetypes;
 import uuid;
+import pprint;
 
 #function is the main indexing function
 #uses clip: (image parser) to extract the data 
@@ -48,8 +49,7 @@ def image_mimetype(object_key : str)-> str:
 def parse_image(file_path : str, out_dir: str): 
     #convert image to base64
     image_string = image_data_uri(file_path)
-    api_url = os.getenv("CLIP_API_URL")
-    api_url = "http://localhost:8000"
+    api_url = os.getenv("CLIP_API_URL", "http://localhost:8000")
     try:
         response = requests.post(
             f"{api_url}/embedding/image",
@@ -75,10 +75,14 @@ def parse_image(file_path : str, out_dir: str):
 
 client = QdrantClient(url = "http://localhost:6333");
 #create the collection
-client.create_collection(
-    collection_name="image_collection",
-    vectors_config=VectorParams(size=1536, distance=Distance.DOT),
-)
+#CLIP outputs 512-dim vectors - collection size must match, not 1536
+CLIP_VECTOR_SIZE = 512
+#create collection only if collection doesn't exists 
+if not client.collection_exists("image_collection"):
+    client.create_collection(
+        collection_name="image_collection",
+        vectors_config=VectorParams(size=CLIP_VECTOR_SIZE, distance=Distance.DOT),
+    )
 
 
 
@@ -92,7 +96,8 @@ def Store() ->None:
        image_mimetype_res = image_mimetype(image_data) 
        
        download_destination = "../public/storage"
-       destination_res = download_files_from_s3(image_data, "downloaded")
+       destination_res = download_files_from_s3(image_data, download_destination)
+       print("the download res is : ", destination_res)   
 
        output_dir = "../output"   
        parsed_image_data = parse_image(destination_res, output_dir)        
@@ -124,5 +129,5 @@ def Store() ->None:
         pprint.pprint(e) 
 
     
-      
+print(Store())
                 
