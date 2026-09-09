@@ -7,9 +7,10 @@ import subprocess
 import requests
 from pathlib import Path
 from qdrant_client.models import QueryResponse
+from qdrant_client import QdrantClient
 
+#connect to clip url 
 CLIP_API_URL = os.getenv("CLIP_API_URL", "http://localhost:8000")
-
 
 #read a file and return (mime_type, data_uri) for CLIP consumption
 def image_to_data_uri(file_path: str) -> tuple[str, str]:
@@ -216,14 +217,14 @@ def get_vectordb_client()->QdrantClient:
 
 
 #function to read and get the embeddings for multiple images
-def get_embeddings_from_db(parsed_data: List[float]) -> QueryResponse :
+def get_embeddings_from_db(parsed_data: list[float]) -> QueryResponse :
     client = get_vectordb_client()
     
     #nearest neighbour search 
     #search based on similarity of vectors
     #future : can add query_filter for particular search 
     response = client.query_points(
-        collection_name = "design_smith",
+        collection_name = "image_collection",
         query = parsed_data,
     )
     
