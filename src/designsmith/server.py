@@ -29,8 +29,9 @@ def read_root():
 
 
 @app.post("/get_similar_image")
-async def get_similar_image_endpoint(request_context : UploadFile =  File(...)):
+#form-data key must be named "context" — matches the client contract 
+async def get_similar_image_endpoint(context : UploadFile =  File(...)):
     print("file received at endpoint")
-    return await get_similar_image(GetImageRequest.model_construct(context = request_context))
+    return await get_similar_image(GetImageRequest.model_construct(context = context))
 
  
