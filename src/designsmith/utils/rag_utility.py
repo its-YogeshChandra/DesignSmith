@@ -16,9 +16,9 @@ load_dotenv();
 #connect to clip url 
 CLIP_API_URL = os.getenv("CLIP_API_URL", "http://localhost:8000")
 
-if os.getenv("LLM_API_KEY"):
-     raise ValueError(f"LLM_API_KEY is not set") 
-LLM_API_KEY = os.getenv("CLOUDFLARE_SECRET_KEY")
+#nvidia nim api key
+#validated when the llm is called , not at import : a missing key must not stop the embedding endpoints from running
+LLM_API_KEY = os.getenv("LLM_API_KEY")
 
 #read a file and return (mime_type, data_uri) for CLIP consumption
 def image_to_data_uri(file_path: str) -> tuple[str, str]:
@@ -225,76 +225,116 @@ def get_vectordb_client()->QdrantClient:
 
 
 #function to read and get the embeddings for multiple images
-def get_embeddings_from_db(parsed_data: list[float]) -> QueryResponse :
+#future work : add similarity score for the images 
+#returns QueryResponse on success , None if the db is unreachable or the query fails
+def get_embeddings_from_db(parsed_data: list[float]) -> QueryResponse | None:
+    if parsed_data is None:
+        print("get_embeddings_from_db: no embedding provided")
+        return None
+
     client = get_vectordb_client()
-    
-    #nearest neighbour search 
+
+    #nearest neighbour search
     #search based on similarity of vectors
-    #future : can add query_filter for particular search 
-    response = client.query_points(
-        collection_name = "image_collection",
-        query = parsed_data,
-    )
-    
+    #future : can add query_filter for particular search
+    try:
+        response = client.query_points(
+            collection_name = "image_collection",
+            query = parsed_data,
+        )
+    except Exception as e:
+        print(f"get_embeddings_from_db error: {e}")
+        return None
+
     #parse response
-    return response 
-
-class LLM_response:
-    response : str 
+    return response
 
 
-#function to get the response from the llm
-#request parameter: query , context 
-def get_llm_response(query: str, context: list[float])-> LLM_response:
-    #pass the response
-    import requests
+#system prompt : how the design assistant should behave and shape its output
+LLM_SYSTEM_PROMPT = (
+    "You are DesignSmith's design assistant. "
+    "You are given reference images retrieved from a design library because they are visually "
+    "similar to the user's uploaded image, together with the user's query. "
+    "Analyse the reference images and answer the query. "
+    "Respond with valid minified JSON only - no markdown fences, no extra text - matching: "
+    '{"summary": "<one paragraph overview of the visual pattern>", '
+    '"style_tags": ["<short style descriptors>"], '
+    '"dominant_colors": ["<hex color codes>"], '
+    '"recommendations": ["<actionable design suggestions>"]}'
+)
 
-invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
-stream = True
 
-headers = {
-    "Authorization": f"Bearer{LLM_API_KEY}",
-    "Accept": "text/event-stream" if stream else "application/json",
-}
+#vision llm served by nvidia nim
+#neva-22b and vila are listed by /v1/models but their backend functions are not available for this account (404)
+#llama-3.2-vision works but accepts only ONE image per request - callers must send at most one
+LLM_MODEL = "meta/llama-3.2-11b-vision-instruct"
 
-payload = {
-  "messages": [
-    {
-      "role": "user",
-      "content": [
-        {
-          "type": "text",
-          "text": f"{query}"
-        },
-        
-        #sending the image vector data
-        {
-          "type": "image_url",
-          "image_url": {
-            "url": "https://assets.ngc.nvidia.com/products/api-catalog/phi-3-5-vision/example1b.jpg"
-          }
-        }
-      ]
+
+#holds the text output of the llm
+class LLMResponse:
+    def __init__(self, response: str):
+        self.response = response
+
+
+#call the nvidia nim vision llm (neva-22b) with the retrieved images + the user query
+#image_content_list : entries of the openai content form {"type": "image_url", "image_url": {"url": "<data uri>"}}
+#returns LLMResponse on success , None on failure
+def get_llm_response(query: str, image_content_list: list[dict]) -> LLMResponse | None:
+    if not LLM_API_KEY:
+        print("get_llm_response: LLM_API_KEY is not set")
+        return None
+    if not query or not query.strip():
+        print("get_llm_response: query is empty")
+        return None
+    if not image_content_list:
+        print("get_llm_response: no image content provided")
+        return None
+
+    invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {LLM_API_KEY}",
+        "Accept": "application/json",
     }
-  ],
-  "model": "moonshotai/kimi-k3",
-  "max_tokens": 16384,
-  "seed": 0,
-  "stream": stream,
-  "temperature": 1,
-  "reasoning_effort": "max"
-}
 
-response = requests.post(invoke_url, headers=headers, json=payload, stream=stream)
-if stream:
-    for line in response.iter_lines():
-        if line:
-            print(line.decode("utf-8"))
-else:
-    print(response.json())
-    response_str = "market maker"
-    response = LLM_response()
-    response.response = response_str
-    return response 
+    #user content : the query text first , then every retrieved image as a data uri
+    user_content = [{"type": "text", "text": query}]
+    for image_entry in image_content_list:
+        user_content.append(image_entry)
+
+    payload = {
+        "messages": [
+            {"role": "system", "content": LLM_SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ],
+        "model": LLM_MODEL,
+        "max_tokens": 512,
+        "seed": 0,
+        "stream": False,
+        "temperature": 1,
+        "reasoning_effort": "low",
+    }
+
+    try:
+        response = requests.post(invoke_url, headers=headers, json=payload, timeout=120)
+        response.raise_for_status()
+        response_body = response.json()
+
+        #non streaming : the generated text sits in choices[0].message.content
+        generated_text = response_body["choices"][0]["message"]["content"]
+        if not generated_text or not generated_text.strip():
+            print("get_llm_response: llm returned empty content")
+            return None
+
+        return LLMResponse(response=generated_text.strip())
+
+    except requests.HTTPError as e:
+        #print the body too : nim errors (bad model , multi-image , auth) are only readable there
+        error_body = e.response.text[:300] if e.response is not None else ""
+        print(f"get_llm_response error: {e} | body: {error_body}")
+        return None
+    except Exception as e:
+        print(f"get_llm_response error: {e}")
+        return None
 
     
