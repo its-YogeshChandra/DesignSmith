@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Form, File;
-from controllers.user_controller import get_similar_image, GetImageRequest
+from controllers.user_controller import get_similar_image, GetImageRequest, get_pattern
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import UploadFile
 
@@ -23,10 +23,9 @@ app.add_middleware(
     allow_credentials=True, 
 )
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
+@app.post("/get_structure")
+async def get_structure_endpoint(context = Form(...)):
+    return await get_pattern(GetImageRequest.model_construct(context = context))
 
 @app.post("/get_similar_image")
 #form-data key must be named "context" — matches the client contract 

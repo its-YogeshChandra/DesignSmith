@@ -8,9 +8,17 @@ import requests
 from pathlib import Path
 from qdrant_client.models import QueryResponse
 from qdrant_client import QdrantClient
+from dotenv import load_dotenv
+
+
+load_dotenv();
 
 #connect to clip url 
 CLIP_API_URL = os.getenv("CLIP_API_URL", "http://localhost:8000")
+
+if os.getenv("LLM_API_KEY"):
+     raise ValueError(f"LLM_API_KEY is not set") 
+LLM_API_KEY = os.getenv("CLOUDFLARE_SECRET_KEY")
 
 #read a file and return (mime_type, data_uri) for CLIP consumption
 def image_to_data_uri(file_path: str) -> tuple[str, str]:
@@ -230,7 +238,63 @@ def get_embeddings_from_db(parsed_data: list[float]) -> QueryResponse :
     
     #parse response
     return response 
-    
-    
+
+class LLM_response:
+    response : str 
+
+
+#function to get the response from the llm
+#request parameter: query , context 
+def get_llm_response(query: str, context: list[float])-> LLM_response:
+    #pass the response
+    import requests
+
+invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
+stream = True
+
+headers = {
+    "Authorization": f"Bearer{LLM_API_KEY}",
+    "Accept": "text/event-stream" if stream else "application/json",
+}
+
+payload = {
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": f"{query}"
+        },
         
+        #sending the image vector data
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "https://assets.ngc.nvidia.com/products/api-catalog/phi-3-5-vision/example1b.jpg"
+          }
+        }
+      ]
+    }
+  ],
+  "model": "moonshotai/kimi-k3",
+  "max_tokens": 16384,
+  "seed": 0,
+  "stream": stream,
+  "temperature": 1,
+  "reasoning_effort": "max"
+}
+
+response = requests.post(invoke_url, headers=headers, json=payload, stream=stream)
+if stream:
+    for line in response.iter_lines():
+        if line:
+            print(line.decode("utf-8"))
+else:
+    print(response.json())
+    response_str = "market maker"
+    response = LLM_response()
+    response.response = response_str
+    return response 
+
     
