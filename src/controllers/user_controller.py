@@ -16,10 +16,15 @@ class GetImageRequest(BaseModel):
 # response : the response from the rag 
 async def get_similar_image(request : GetImageRequest) -> FileResponse:
     file_data = request.context
+    print("file data ", file_data)
+    
     #read uploaded file bytes  
     raw_bytes = await file_data.read()
+    print("raw bytes ", raw_bytes)
+    
     #create embedding from uploaded image using clip model  
     user_query_embedding = embed_image(data=raw_bytes, filename=file_data.filename)
+    print("user query embedding ", user_query_embedding)
 
     #retreive similar embeddings from embeddings
     #will doing a nearest neightbor search
@@ -28,6 +33,7 @@ async def get_similar_image(request : GetImageRequest) -> FileResponse:
     #fix to the thing
     if nearest_chunks is None or not nearest_chunks.points:
         raise HTTPException(status_code=404, detail="no similar images found")
+    print("nearest chunks ", nearest_chunks)
 
     #if we find chunks 
     #search the media bucket using image data 

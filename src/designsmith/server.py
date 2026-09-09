@@ -1,6 +1,8 @@
-from fastapi import FastAPI;
+from fastapi import FastAPI, Form, File;
 from controllers.user_controller import get_similar_image, GetImageRequest
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import UploadFile
+
 app = FastAPI()
 
 #configuration in app 
@@ -27,7 +29,8 @@ def read_root():
 
 
 @app.post("/get_similar_image")
-async def get_similar_image_endpoint(request : GetImageRequest):
-    return await get_similar_image(request)
+async def get_similar_image_endpoint(request_context : UploadFile =  File(...)):
+    print("file received at endpoint")
+    return await get_similar_image(GetImageRequest.model_construct(context = request_context))
 
  
