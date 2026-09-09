@@ -125,12 +125,12 @@ def Store() ->None:
     image_data_storage = list_objects();
     points = []
     for image in image_data_storage: 
-       image_data = image.get('Key')
+       image_id = image.get('Key')
        image_mimetype_res = image_mimetype(image_data) 
        PROJECT_ROOT = Path(__file__).resolve().parents[1]   # DesignSmith/ even when run from anywhere
        download_destination = str(PROJECT_ROOT / "public" / "storage")
      
-       destination_res = download_files_from_s3(image_data, download_destination)
+       destination_res = download_files_from_s3(image_id, download_destination)
 
        #for SVG: qlmanage outputs temp PNG into the same folder  
        parsed_image_data = parse_image(destination_res, download_destination)
@@ -145,7 +145,7 @@ def Store() ->None:
                 id=str(uuid.uuid4()),
                 vector=parsed_image_data,
                 payload={
-                    "file_name" : image_data,
+                    "file_name" : image_id,
                     "mimetype" : image_mimetype_res,
                 }
                 
