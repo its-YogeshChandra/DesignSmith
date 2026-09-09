@@ -1,14 +1,18 @@
 #function to fetch the user input for rag
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, UploadFile
 from pydantic import BaseModel
-from designsmith.utils.rag_utility import embed_image,embed_text, get_embeddings_from_db;
+from designsmith.utils.rag_utility import embed_image,embed_text, get_embeddings_from_db
+from designsmith.utils.file_utility import download_files_from_s3, list_objects;
+from fastapi.responses import FileResponse
 
+#class compoenet for getting request 
 class GetImageRequest(BaseModel):
     context : UploadFile
 
+#class component for sending response 
 class GetImageResponse(BaseModel):
     success: bool
-    response : File
+    response : list[FileResponse]
 
 #controller for get image 
 # request : the user input 
@@ -30,10 +34,20 @@ async def get_similar_image(request : GetImageRequest) -> GetImageResponse:
 
     #if we find chunks 
     #search the media bucket using image data 
-    #iterate over the cunks 
-    #for val in nearest_chunks:
-         
-    print(user_query_embedding) 
-    return GetImageResponse(response = "the response is ")
+    #iterate over the chunks
+    image_response = []
+    for chunks in nearest_chunks.points:
+        file_name = chunks.payload.get("file_name")
+        PROJECT_ROOT = Path(__file__).resolve().parents[1]   # DesignSmith/ even when run from anywhere
+        download_destination = str(PROJECT_ROOT / "public" / "embeds")
+       
+        # retrive file from media bucket
+        file_object_path = download_files_from_s3(file_name, download_destination)
+
+        #no mimetype added , fastapi underthe hood adds mimetype : change this in future 
+        file_response = FileResponse( path = file_object_path)
+        image_response.append(file_response)
+        
+    return GetImageResponse(success =True, response = image_response)
 
  

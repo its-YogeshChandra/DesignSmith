@@ -6,7 +6,7 @@ import mimetypes
 import subprocess
 import requests
 from pathlib import Path
-
+from qdrant_client.models import QueryResponse
 
 CLIP_API_URL = os.getenv("CLIP_API_URL", "http://localhost:8000")
 
@@ -216,19 +216,19 @@ def get_vectordb_client()->QdrantClient:
 
 
 #function to read and get the embeddings for multiple images
-def get_embeddings_from_db(parsed_data: List[float]) -> list[list[float]]:
+def get_embeddings_from_db(parsed_data: List[float]) -> QueryResponse :
     client = get_vectordb_client()
-
-    #neartest neighbour search 
+    
+    #nearest neighbour search 
     #search based on similarity of vectors
     #future : can add query_filter for particular search 
     response = client.query_points(
         collection_name = "design_smith",
         query = parsed_data,
     )
-    #parse response 
-    vector = response.points[0].vector  
-    return vector 
+    
+    #parse response
+    return response 
     
     
         

@@ -165,10 +165,35 @@ def Store() ->None:
         pprint.pprint(e) 
 
 
-def init_pipeline()-> None:
-    
-    Store()
+def test_search() -> None:
+    PROJECT_ROOT = Path(__file__).resolve().parents[1]
+    test_files = [
+        str(PROJECT_ROOT / "test.jpeg"),
+        str(PROJECT_ROOT / "testimage.webp"),
+    ]
+
+    for test_file in test_files:
+        print(f"\n{'='*60}")
+        print(f"Embedding: {test_file}")
+        print(f"{'='*60}")
+
+        #create embedding for the test image
+        vector = parse_image(test_file, str(PROJECT_ROOT / "public" / "storage"))
+        if vector is None:
+            print(f"Failed to embed {test_file}")
+            continue
+
+        print(f"Vector length: {len(vector)}")
+        print(f"First 5 values: {vector[:5]}")
+
+        #search qdrant with this embedding
+        search_results = client.query_points(
+            collection_name="image_collection",
+            query = vector,
+        )
+        
+        pprint.pprint(search_results.points) 
 
 
-print(init_pipeline())
-                
+if __name__ == "__main__":
+    test_search()
