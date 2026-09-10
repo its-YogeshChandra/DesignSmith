@@ -66,6 +66,8 @@ def _make_points(*file_names):
         points.append(SimpleNamespace(id=f"id-{name}", payload=payload, score=0.9))
     return SimpleNamespace(points=points)
 
+#money patching : 
+#checking if controller working fine or not / not the actual functions that are getting called in them 
 
 #standard stub set : embedding works , db returns points , s3 download writes a
 #real temp file (controller opens that path for b64/zip) , llm returns valid json
@@ -89,6 +91,7 @@ def _install_happy_stubs(monkeypatch, tmp_path, points, llm_response=None):
             "recommendations": ["increase contrast"],
         }))
 
+    
     monkeypatch.setattr(controller, "embed_image", fake_embed)
     monkeypatch.setattr(controller, "get_embeddings_from_db", fake_db)
     monkeypatch.setattr(controller, "download_files_from_s3", fake_download)
@@ -104,7 +107,7 @@ def _install_happy_stubs(monkeypatch, tmp_path, points, llm_response=None):
 def test_root_returns_hello():
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"Hello": "World"}
+    assert response.json() == {"message": "Welcome to DesignSmith API!"}
 
 
 #what : /get_similar_image full happy path - real form upload , stubbed rag chain ,
@@ -259,7 +262,7 @@ def test_get_similar_image_oversize_413():
         files={"context": ("big.png", oversize, "image/png")},
     )
     assert response.status_code == 413
-
+ 
 
 #what : empty file body -> 400 "uploaded file is empty"
 #why   : an empty upload is a client bug , not a missing field (that is 422) and

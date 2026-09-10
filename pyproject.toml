@@ -10,10 +10,11 @@ requires-python = ">=3.11"
 dependencies = [
     "boto3>=1.43.89",
     "fastapi[standard]>=0.141.1",
-    "httpx>=0.28.1",
+    "httpx2>=2.12.0",
     "liteparse>=2.14.4",
     "llama-cloud>=2.15.0",
     "llama-index>=0.14.24",
+    "pytest>=9.1.1",
     "python-dotenv>=1.2.3",
     "qdrant-client>=1.19.0",
     "requests>=2.34.2",

@@ -35,4 +35,7 @@ async def get_similar_image_endpoint(context : UploadFile =  File(...)):
     print("file received at endpoint")
     return await get_similar_image(GetImageRequest.model_construct(context = context))
 
- 
+#health check endpoint
+@app.get("/")
+async def root():
+    return {"message": "Welcome to the DesignSmith API!"}
