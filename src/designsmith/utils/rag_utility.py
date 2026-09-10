@@ -2,6 +2,7 @@
 #provides image and text embedding via CLIP model
 import os
 import base64
+import json
 import mimetypes
 import subprocess
 import requests
@@ -251,16 +252,21 @@ def get_embeddings_from_db(parsed_data: list[float]) -> QueryResponse | None:
 
 
 #system prompt : how the design assistant should behave and shape its output
+#hardened after live testing : llama-3.2-11b-vision ignores soft "respond with json"
+#wording and returns markdown prose - the instruction must lead , show the exact
+#shape , and bound the output ("starts with { ends with }")
 LLM_SYSTEM_PROMPT = (
     "You are DesignSmith's design assistant. "
     "You are given reference images retrieved from a design library because they are visually "
     "similar to the user's uploaded image, together with the user's query. "
     "Analyse the reference images and answer the query. "
-    "Respond with valid minified JSON only - no markdown fences, no extra text - matching: "
+    "Output ONLY a JSON object. No prose, no markdown, no code fences. "
+    "Exact shape: "
     '{"summary": "<one paragraph overview of the visual pattern>", '
     '"style_tags": ["<short style descriptors>"], '
     '"dominant_colors": ["<hex color codes>"], '
-    '"recommendations": ["<actionable design suggestions>"]}'
+    '"recommendations": ["<actionable design suggestions>"]} '
+    "Your entire response must start with { and end with }."
 )
 
 
@@ -274,6 +280,31 @@ LLM_MODEL = "meta/llama-3.2-11b-vision-instruct"
 class LLMResponse:
     def __init__(self, response: str):
         self.response = response
+
+
+#llms are probabilistic : even with the hardened prompt the model sometimes wraps
+#the json in prose or markdown fences - pull the {...} block out so callers always
+#get a parseable json string , or None if nothing json-shaped came back
+def _extract_json_block(text: str) -> str | None:
+    cleaned = text.strip()
+
+    #strip a markdown code fence if present (```json ... ```)
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`").strip()
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].strip()
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return None
+
+    candidate = cleaned[start:end + 1]
+    try:
+        json.loads(candidate)
+        return candidate
+    except json.JSONDecodeError:
+        return None
 
 
 #call the nvidia nim vision llm (neva-22b) with the retrieved images + the user query
@@ -297,8 +328,9 @@ def get_llm_response(query: str, image_content_list: list[dict]) -> LLMResponse 
         "Accept": "application/json",
     }
 
-    #user content : the query text first , then every retrieved image as a data uri
-    user_content = [{"type": "text", "text": query}]
+    #user content : the query text first (with the json constraint repeated -
+    #small vision models obey the last instruction they read) , then the images
+    user_content = [{"type": "text", "text": f"{query}\n\nReply with ONLY the JSON object."}]
     for image_entry in image_content_list:
         user_content.append(image_entry)
 
@@ -311,7 +343,8 @@ def get_llm_response(query: str, image_content_list: list[dict]) -> LLMResponse 
         "max_tokens": 512,
         "seed": 0,
         "stream": False,
-        "temperature": 1,
+        #low temperature : creative sampling drifts into markdown prose , breaking the json contract
+        "temperature": 0.2,
         "reasoning_effort": "low",
     }
 
@@ -326,7 +359,18 @@ def get_llm_response(query: str, image_content_list: list[dict]) -> LLMResponse 
             print("get_llm_response: llm returned empty content")
             return None
 
-        return LLMResponse(response=generated_text.strip())
+        #prefer the model's own json ; if it drifted into prose/fences , extract the {...} block
+        generated_text = generated_text.strip()
+        try:
+            json.loads(generated_text)
+        except json.JSONDecodeError:
+            extracted = _extract_json_block(generated_text)
+            if extracted is None:
+                print(f"get_llm_response: no parseable json in llm output: {generated_text[:150]}")
+                return None
+            generated_text = extracted
+
+        return LLMResponse(response=generated_text)
 
     except requests.HTTPError as e:
         #print the body too : nim errors (bad model , multi-image , auth) are only readable there
