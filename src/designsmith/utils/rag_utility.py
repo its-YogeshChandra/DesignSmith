@@ -407,7 +407,7 @@ def ts_llm(query: str, image_content_list: list[dict]) -> LLMResponse | None:
 
         #build the request body for the gemini api
         interactions = client.interactions.create(
-            model = "gemini-3.8-flash",
+            model = "gemini-3.5-flash",
             input = [ 
                 {"type": "text", "text": f"Compare this local image and this remote audio file."},
                 {"type": "image", "data": image_b64, "mime_type": f"{image_mime_type}"},
