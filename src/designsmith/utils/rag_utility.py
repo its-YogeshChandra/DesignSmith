@@ -10,8 +10,8 @@ from pathlib import Path
 from qdrant_client.models import QueryResponse
 from qdrant_client import QdrantClient
 from dotenv import load_dotenv
-
-
+from google import genai
+client = genai.Client()
 load_dotenv();
 
 #connect to clip url 
@@ -394,16 +394,25 @@ def ts_llm(query: str, image_content_list: list[dict]) -> LLMResponse | None:
     if not image_content_list:
         print("ts_llm: no image content provided")
         return None
+       
+        client = genai.Client()
         
         #call the llm api for the image
         gemini_api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview"
         GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-        
+ 
         if not GEMINI_API_KEY:
             print("ts_llm: GEMINI_API_KEY is not set")
             return None
 
         #build the request body for the gemini api
+        interactions = client.interactions.create(
+            model = "gemini-3.8-flash",
+            input = [ 
+                {"type": "text", "text": f"Compare this local image and this remote audio file."},
+                {"type": "image", "data": image_b64, "mime_type": f"{image_mime_type}"},
+                ]
+        )
         request_body = {
             "contents": [
                 {
