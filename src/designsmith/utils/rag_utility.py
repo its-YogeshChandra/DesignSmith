@@ -381,4 +381,35 @@ def get_llm_response(query: str, image_content_list: list[dict]) -> LLMResponse 
         print(f"get_llm_response error: {e}")
         return None
 
-    
+
+def ts_llm(query: str, image_content_list: list[dict]) -> LLMResponse | None:
+    if not LLM_API_KEY:
+        print("ts_llm: LLM_API_KEY is not set")
+        return None
+        
+    if not query or not query.strip():
+        print("ts_llm: query is empty")
+        return None
+       
+    if not image_content_list:
+        print("ts_llm: no image content provided")
+        return None
+        
+        #call the llm api for the image
+        gemini_api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview"
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        
+        if not GEMINI_API_KEY:
+            print("ts_llm: GEMINI_API_KEY is not set")
+            return None
+
+        #build the request body for the gemini api
+        request_body = {
+            "contents": [
+                {
+                    "parts": image_content_list + [{"text": query}]
+                }
+            ]
+        }
+
+             
